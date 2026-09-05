@@ -1,0 +1,155 @@
+<div style="display:flex;flex-direction:column;align-items:center;background:#0b0b0b;padding:16px;border-radius:10px;font-family:Arial,Helvetica,sans-serif;">
+  <div style="display:flex;justify-content:space-between;width:600px;max-width:100%;color:#fff;font-size:14px;margin-bottom:8px;">
+    <span>You: <b id="pongScoreLeft">0</b></span>
+    <span style="opacity:.7;">first to 5 wins</span>
+    <span>CPU: <b id="pongScoreRight">0</b></span>
+  </div>
+  <canvas id="pongCanvas" width="600" height="360" style="background:#000;border:2px solid #444;border-radius:6px;max-width:100%;touch-action:none;"></canvas>
+  <div style="color:#aaa;font-size:12px;margin-top:8px;text-align:center;">
+    Move mouse / drag finger over the board to control your paddle &middot; or use the Up/Down arrow keys
+  </div>
+  <button id="pongRestart" style="margin-top:10px;padding:6px 14px;background:#222;color:#fff;border:1px solid #555;border-radius:5px;cursor:pointer;font-size:13px;">Restart</button>
+</div>
+
+<script>
+(function() {
+  var canvas = document.getElementById('pongCanvas');
+  var ctx = canvas.getContext('2d');
+  var W = canvas.width, H = canvas.height;
+
+  var paddleW = 10, paddleH = 70;
+  var leftY = H / 2 - paddleH / 2;
+  var rightY = H / 2 - paddleH / 2;
+  var leftScore = 0, rightScore = 0;
+  var WIN_SCORE = 5;
+  var gameOver = false;
+
+  var ball = { x: W / 2, y: H / 2, r: 7, vx: 4, vy: 3, speed: 4 };
+
+  function resetBall(direction) {
+    ball.x = W / 2;
+    ball.y = H / 2;
+    var angle = (Math.random() * 0.6 - 0.3);
+    ball.speed = 4;
+    ball.vx = direction * ball.speed * Math.cos(angle);
+    ball.vy = ball.speed * Math.sin(angle);
+  }
+  resetBall(1);
+
+  canvas.addEventListener('mousemove', function(e) {
+    var rect = canvas.getBoundingClientRect();
+    var scaleY = H / rect.height;
+    var y = (e.clientY - rect.top) * scaleY;
+    leftY = Math.min(Math.max(y - paddleH / 2, 0), H - paddleH);
+  });
+  canvas.addEventListener('touchmove', function(e) {
+    e.preventDefault();
+    var rect = canvas.getBoundingClientRect();
+    var scaleY = H / rect.height;
+    var touch = e.touches[0];
+    var y = (touch.clientY - rect.top) * scaleY;
+    leftY = Math.min(Math.max(y - paddleH / 2, 0), H - paddleH);
+  }, { passive: false });
+
+  var keys = {};
+  document.addEventListener('keydown', function(e) {
+    if (['ArrowUp', 'ArrowDown'].indexOf(e.key) !== -1) e.preventDefault();
+    keys[e.key] = true;
+  });
+  document.addEventListener('keyup', function(e) { keys[e.key] = false; });
+
+  document.getElementById('pongRestart').addEventListener('click', function() {
+    leftScore = 0; rightScore = 0; gameOver = false;
+    document.getElementById('pongScoreLeft').textContent = 0;
+    document.getElementById('pongScoreRight').textContent = 0;
+    resetBall(1);
+  });
+
+  function update() {
+    if (gameOver) return;
+
+    if (keys['ArrowUp']) leftY -= 6;
+    if (keys['ArrowDown']) leftY += 6;
+    leftY = Math.min(Math.max(leftY, 0), H - paddleH);
+
+    var targetY = ball.y - paddleH / 2;
+    var rightCenter = rightY + paddleH / 2;
+    if (rightCenter < ball.y - 10) rightY += 4;
+    else if (rightCenter > ball.y + 10) rightY -= 4;
+    rightY = Math.min(Math.max(rightY, 0), H - paddleH);
+
+    ball.x += ball.vx;
+    ball.y += ball.vy;
+
+    if (ball.y - ball.r < 0) { ball.y = ball.r; ball.vy *= -1; }
+    if (ball.y + ball.r > H) { ball.y = H - ball.r; ball.vy *= -1; }
+
+    if (ball.vx < 0 && ball.x - ball.r < paddleW + 10 && ball.y > leftY && ball.y < leftY + paddleH) {
+      ball.x = paddleW + 10 + ball.r;
+      var rel = (ball.y - (leftY + paddleH / 2)) / (paddleH / 2);
+      ball.speed = Math.min(ball.speed + 0.3, 9);
+      ball.vx = ball.speed * Math.cos(rel * 0.5);
+      ball.vy = ball.speed * Math.sin(rel * 0.5) + (Math.random() - 0.5);
+    }
+
+    if (ball.vx > 0 && ball.x + ball.r > W - paddleW - 10 && ball.y > rightY && ball.y < rightY + paddleH) {
+      ball.x = W - paddleW - 10 - ball.r;
+      var rel2 = (ball.y - (rightY + paddleH / 2)) / (paddleH / 2);
+      ball.speed = Math.min(ball.speed + 0.3, 9);
+      ball.vx = -ball.speed * Math.cos(rel2 * 0.5);
+      ball.vy = ball.speed * Math.sin(rel2 * 0.5) + (Math.random() - 0.5);
+    }
+
+    if (ball.x < 0) {
+      rightScore++;
+      document.getElementById('pongScoreRight').textContent = rightScore;
+      if (rightScore >= WIN_SCORE) gameOver = true; else resetBall(1);
+    }
+    if (ball.x > W) {
+      leftScore++;
+      document.getElementById('pongScoreLeft').textContent = leftScore;
+      if (leftScore >= WIN_SCORE) gameOver = true; else resetBall(-1);
+    }
+  }
+
+  function draw() {
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, W, H);
+
+    ctx.strokeStyle = '#333';
+    ctx.setLineDash([6, 10]);
+    ctx.beginPath();
+    ctx.moveTo(W / 2, 0);
+    ctx.lineTo(W / 2, H);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(10, leftY, paddleW, paddleH);
+    ctx.fillRect(W - paddleW - 10, rightY, paddleW, paddleH);
+
+    ctx.beginPath();
+    ctx.arc(ball.x, ball.y, ball.r, 0, Math.PI * 2);
+    ctx.fill();
+
+    if (gameOver) {
+      ctx.fillStyle = 'rgba(0,0,0,0.6)';
+      ctx.fillRect(0, 0, W, H);
+      ctx.fillStyle = '#fff';
+      ctx.font = 'bold 24px Arial';
+      ctx.textAlign = 'center';
+      var msg = leftScore > rightScore ? 'You win!' : 'CPU wins!';
+      ctx.fillText(msg, W / 2, H / 2 - 10);
+      ctx.font = '14px Arial';
+      ctx.fillText('Press Restart to play again', W / 2, H / 2 + 20);
+    }
+  }
+
+  function loop() {
+    update();
+    draw();
+    requestAnimationFrame(loop);
+  }
+  loop();
+})();
+</script>
